@@ -1,14 +1,13 @@
 package com.tinyinventory.app.controller;
 
-import com.tinyinventory.app.dto.UserLoginDto;
-import com.tinyinventory.app.dto.UserResetPasswordDto;
-import com.tinyinventory.app.dto.UserResponseDto;
+import com.tinyinventory.app.dto.*;
 import com.tinyinventory.app.exceptions.EmailAlreadyExistsException;
 import com.tinyinventory.app.exceptions.EmailNotFoundException;
 import com.tinyinventory.app.exceptions.InvalidPasswordFormatException;
 import com.tinyinventory.app.exceptions.UsernameAlreadyExistsException;
 import com.tinyinventory.app.model.User;
 import com.tinyinventory.app.service.JwtService;
+import com.tinyinventory.app.service.MyUserDetailsService;
 import com.tinyinventory.app.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -16,16 +15,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+//Used to allow access from React/Vite. It may be changed or commented in production
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
+@RequestMapping("/api")
 public class UserController {
 
     @Autowired
@@ -36,6 +37,9 @@ public class UserController {
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private MyUserDetailsService myUserDetailsService;
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody UserLoginDto userLoginDto) {
@@ -60,6 +64,7 @@ public class UserController {
                 //return jwtService.generateToken(userLoginDto.getUsername());
                 try {
                     String token = jwtService.generateToken(userLoginDto.getUsername());
+                    System.out.println(token);
                     return ResponseEntity
                             .status(HttpStatus.OK)
                             .body(Map.of("token", token));
@@ -77,7 +82,7 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Server Connection Error"));
+                    .body(Map.of("error", "Server Connection Error: " + e.getMessage()));
         }
         //***Original was without the try-catch blocks and ResponseEntity***
         /* //Returns a String Token
@@ -112,9 +117,9 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<Map<String, Object>> saveUser(@RequestBody User user) {
+    public ResponseEntity<Map<String, Object>> saveUser(@RequestBody UserRegisterDto userRegisterDto) {
        try {
-           UserResponseDto savedUser = userService.saveUser(user);
+           UserResponseDto savedUser = userService.saveUser(userRegisterDto);
 
            Map<String, Object> response = new HashMap<>();
            response.put("username", savedUser.getUsername());
@@ -145,6 +150,52 @@ public class UserController {
                   // .body(Map.of("message", "An unexpected error occurred"));
        }
 
+    }
+
+    //RECOMMENDED: Check to see if token is valid, using Bearer Token method (in React);
+    @GetMapping("/check-token")
+    public ResponseEntity<Map<String, Object>> isTokenValid(@AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Session Expired"));
+        }
+
+        //return ResponseEntity.ok(userDetails.getUsername());
+        System.out.println("Check if valid: " + userDetails.getUsername());
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(Map.of("message", "Token Valid"));
+    }
+
+    //NOT Recommended: Check to see if token is valid using token in Request Body (request from React)
+    @GetMapping("/check-credentials")
+    public ResponseEntity<Map<String, Object>> checkTokenValidation(@RequestBody TokenDto tokenDto) {
+
+        try {
+            //get username from token
+            String username = jwtService.extractUserName(tokenDto.getToken());
+            //get userDetails by checking the database
+            UserDetails userDetails = myUserDetailsService.loadUserByUsername(username);
+
+            boolean isTokenValid = jwtService.validateToken(tokenDto.getToken(), userDetails);
+
+            if (isTokenValid) {
+                return ResponseEntity
+                        .status(HttpStatus.OK)
+                        .body(Map.of("message", "OK"));
+            } else {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("message", "Session Expired"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Server Connection Error. Try again!"));
+        }
     }
 
 }

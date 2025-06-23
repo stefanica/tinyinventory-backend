@@ -57,10 +57,14 @@ public class SecurityConfig {
         // ***The Lambda configuration, used in production***
         http.csrf(customizer -> customizer.disable()); //disabling csrf
 
+        // if Spring MVC is on classpath and no CorsConfigurationSource is provided,
+        // Spring Security will use CORS configuration provided to Spring MVC
+        http.cors(Customizer.withDefaults()); //Trying to allow Requests with Bearer Token from React APP
+
         // enable authorisation; for every request we are saying authenticate
         http.authorizeHttpRequests((request -> request
                 //once a user logs in I want to create a new token
-                .requestMatchers("/register", "/login", "/reset-password") //add this request path (url)
+                .requestMatchers("/api/register", "/api/login", "/api/reset-password") //add this request path (url)
                 .permitAll() // only for "register" and "login" requests path to permit to be accessed
                 .anyRequest().authenticated()));
 

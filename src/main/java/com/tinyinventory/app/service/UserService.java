@@ -3,12 +3,10 @@ package com.tinyinventory.app.service;
 import com.sendgrid.helpers.mail.Mail;
 import com.sendgrid.helpers.mail.objects.Content;
 import com.sendgrid.helpers.mail.objects.Email;
+import com.tinyinventory.app.dto.UserRegisterDto;
 import com.tinyinventory.app.dto.UserResetPasswordDto;
 import com.tinyinventory.app.dto.UserResponseDto;
-import com.tinyinventory.app.exceptions.EmailAlreadyExistsException;
-import com.tinyinventory.app.exceptions.EmailNotFoundException;
-import com.tinyinventory.app.exceptions.InvalidPasswordFormatException;
-import com.tinyinventory.app.exceptions.UsernameAlreadyExistsException;
+import com.tinyinventory.app.exceptions.*;
 import com.tinyinventory.app.misc.APIKeys;
 import com.tinyinventory.app.model.User;
 import com.tinyinventory.app.repo.UserRepo;
@@ -86,23 +84,34 @@ public class UserService {
     }
     //*******************************************************************************************//
 
-    public UserResponseDto saveUser(User user) {
+    public UserResponseDto saveUser(UserRegisterDto userRegisterDto) {
 
-        if (userRepo.existsByUsername(user.getUsername())) {
+        if (userRepo.existsByUsername(userRegisterDto.getUsername())) {
             throw new UsernameAlreadyExistsException("Username already exists");
         }
 
-        if (userRepo.existsByEmail(user.getEmail())) {
+        if (userRepo.existsByEmail(userRegisterDto.getEmail())) {
             throw new EmailAlreadyExistsException("Email already exists");
         }
 
+        if (!userRegisterDto.getPassword().equals(userRegisterDto.getPasswordConfirmed())) {
+            throw new PasswordMatchException("Passwords don't match");
+        }
+
         //This can also be done on the front-end, but for security reasons needs to be also on backend
-        if (!validatePassword(user.getPassword())) {
+        if (!validatePassword(userRegisterDto.getPassword())) {
             throw new InvalidPasswordFormatException("Password format is invalid");
         }
 
+        //Create User object (Entity) from UserRegisterDto
+        User user = new User();
+        user.setFullName(userRegisterDto.getFirstName() + " " + userRegisterDto.getLastName());
+        user.setUsername(userRegisterDto.getUsername());
+        user.setEmail(userRegisterDto.getEmail());
+        user.setPassword(encoder.encode(userRegisterDto.getPassword()));
+
         //Used to encrypt the password in the database
-        user.setPassword(encoder.encode(user.getPassword()));
+        //user.setPassword(encoder.encode(user.getPassword()));
 
         return new UserResponseDto(userRepo.save(user));
     }
@@ -110,7 +119,11 @@ public class UserService {
 
     //This can also be done on the front-end, but for security reasons needs to be also on backend
     public boolean validatePassword(String password) {
-        return true;
+        //Return TRUE if:
+        // - has at least 8 characters
+        // - has at least one letter
+        // - has at least one digit
+        return password.matches("^(?=.*[A-Za-z])(?=.*\\\\d)[A-Za-z\\\\d]{8,}$");
     }
 
 }

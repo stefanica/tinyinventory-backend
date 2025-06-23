@@ -2,6 +2,7 @@ package com.tinyinventory.app.service;
 
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -18,10 +19,13 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import lombok.extern.slf4j.Slf4j;
 
     // *** Whenever we send a request we also need to send the token that was generated on Login and saved in local storage ***
     // *** When using Postman we have to add it at Authorization tab, select Bearer, and paste the token ***
 
+
+@Slf4j //Used fot log. method
 @Service
 public class JwtService {
 
@@ -105,9 +109,22 @@ public class JwtService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();*/
+
+        //PREVIOUS -> didn't catch invalid token waning
         return Jwts.parser() //parserBuilder() method not found
                 .setSigningKey(getKey())
                 .build().parseClaimsJws(token).getBody();
+
+        //NEW version -> trying to reduce the stacktrace errors -- NEEDS WORK
+        /*try {
+            return Jwts.parser() //parserBuilder() method not found
+                    .setSigningKey(getKey())
+                    .build().parseClaimsJws(token).getBody();
+        } catch (JwtException e) {
+            // Log and rethrow or return null
+            log.warn("Invalid JWT token: {}", e.getMessage());
+            throw new RuntimeException("Invalid JWT token");
+        }*/
     }
 
 

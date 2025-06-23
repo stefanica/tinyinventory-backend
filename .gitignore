@@ -38,3 +38,6 @@ build/
 # Ignore the APIKeys.java file (holds secrets)
 /src/main/java/com/tinyinventory/app/misc/APIKeys.java
 
+# Ignore Security Configuration
+src/main/java/com/tinyinventory/app/config/JwtFilter.java
+src/main/java/com/tinyinventory/app/config/SecurityConfig.java
