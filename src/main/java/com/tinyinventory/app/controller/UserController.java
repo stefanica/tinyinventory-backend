@@ -1,14 +1,14 @@
 package com.tinyinventory.app.controller;
 
 import com.tinyinventory.app.dto.*;
-import com.tinyinventory.app.exceptions.EmailAlreadyExistsException;
-import com.tinyinventory.app.exceptions.EmailNotFoundException;
-import com.tinyinventory.app.exceptions.InvalidPasswordFormatException;
-import com.tinyinventory.app.exceptions.UsernameAlreadyExistsException;
+import com.tinyinventory.app.exceptions.*;
 import com.tinyinventory.app.model.User;
+import com.tinyinventory.app.service.EmailService;
 import com.tinyinventory.app.service.JwtService;
 import com.tinyinventory.app.service.MyUserDetailsService;
 import com.tinyinventory.app.service.UserService;
+import jakarta.mail.MessagingException;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,11 +20,18 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Map;
 
 //Used to allow access from React/Vite. It may be changed or commented in production
-@CrossOrigin(origins = "http://localhost:5173")
+//@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+        "http://localhost:5173", // for development
+        "http://tinyinventory.com",
+        "https://tinyinventory.com",
+        "https://www.tinyinventory.com"
+})
 @RestController
 @RequestMapping("/api")
 public class UserController {
@@ -40,6 +47,9 @@ public class UserController {
 
     @Autowired
     private MyUserDetailsService myUserDetailsService;
+
+    @Autowired
+    private EmailService emailService;
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody UserLoginDto userLoginDto) {
@@ -64,7 +74,7 @@ public class UserController {
                 //return jwtService.generateToken(userLoginDto.getUsername());
                 try {
                     String token = jwtService.generateToken(userLoginDto.getUsername());
-                    System.out.println(token);
+                    //System.out.println(token);
                     return ResponseEntity
                             .status(HttpStatus.OK)
                             .body(Map.of("token", token));
@@ -96,25 +106,6 @@ public class UserController {
         */
     }
 
-    @PostMapping("/reset-password")
-    public ResponseEntity<Map<String, Object>> resetPassword(@RequestBody UserResetPasswordDto userResetPasswordDto) {
-        try {
-            userService.resetPasswordRandom(userResetPasswordDto);
-            return ResponseEntity.ok().body(Map.of("message", "An email with a random " +
-                        "generated password was send to your email: " + userResetPasswordDto.getEmail()));
-        } catch (EmailNotFoundException e) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "The email you have entered was not found in the database"));
-        } catch (IOException e) {
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to send email with the new password. Try again in 5 minutes"));
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Password update failed. Please try again."));
-        }
-    }
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> saveUser(@RequestBody UserRegisterDto userRegisterDto) {
@@ -125,7 +116,11 @@ public class UserController {
            response.put("username", savedUser.getUsername());
            response.put("fullName", savedUser.getFullName());
            response.put("email", savedUser.getEmail());
-           response.put("message", "User registered successfully");
+           response.put("message", "User registered successfully.");
+
+           if (savedUser.getUsername() != null && savedUser.getEmail() != null) {
+               emailService.sendRegistrationEmail(savedUser.getEmail(), savedUser.getUsername());
+           }
 
            return ResponseEntity
                    .status(HttpStatus.CREATED)
@@ -138,6 +133,10 @@ public class UserController {
        } catch (EmailAlreadyExistsException e) {
            return ResponseEntity
                    .status(HttpStatus.CONFLICT)
+                   .body(Map.of("message", e.getMessage()));
+       } catch (PasswordMatchException e) {
+           return ResponseEntity
+                   .status(HttpStatus.BAD_REQUEST)
                    .body(Map.of("message", e.getMessage()));
        } catch (InvalidPasswordFormatException e) {
            return ResponseEntity
@@ -152,6 +151,132 @@ public class UserController {
 
     }
 
+    /***************************************** Password Forgot / Change ******************************************/
+    @PostMapping("/reset-password-email")
+    public ResponseEntity<Map<String, Object>> sendResetPasswordLink(@RequestBody UserResetPasswordDto userResetPasswordDto) {
+        try {
+            userService.sendPasswordResetEmail(userResetPasswordDto);
+           /* return ResponseEntity.ok().body(Map.of("message", "An email with a random " +
+                        "generated password was send to your email: " + userResetPasswordDto.getEmail()));*/
+            return ResponseEntity
+                    .status(HttpStatus.OK)
+                    .body(Map.of("message", "An email with a link " +
+                            "to reset your password was send to your mail address: " + userResetPasswordDto.getEmail()));
+        } catch (EmailNotFoundException e) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "The email you have entered was not found in the database"));
+        } catch (MessagingException e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to send email: " + e.getMessage() + " Please try again."));
+        } catch (UnsupportedEncodingException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed: " + e.getMessage() + " Please try again."));
+        }
+    }
+
+
+    //Method name used if we want to send the token as a Path variable
+    /*@PutMapping("/change-password/{token}")
+    public ResponseEntity<?> resetPassword(@PathVariable String token, @RequestBody PasswordResetDto request) {*/
+
+    @PutMapping("/change-password")
+    public ResponseEntity<Map<String, Object>> updatePassword(@RequestBody PasswordResetDto request) {
+        try {
+           userService.updatePassword(request);
+
+            return ResponseEntity
+                    .status(HttpStatus.OK)
+                    .body(Map.of("message", "Password changed successfully."));
+        } catch (EmailNotFoundException e) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", e.getMessage()));
+        } catch (PasswordMatchException e) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", e.getMessage()));
+        } catch (InvalidPasswordFormatException e) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", e.getMessage())); //gets the message from the UserService (exception creation)
+        } catch (Exception e) {
+                return ResponseEntity
+                        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(Map.of("message", e.getMessage()));
+            }
+        }
+    /********************************************************************************************/
+
+
+
+    //Return user information (Full Name, Username, Email)
+    @GetMapping("/user")
+    public ResponseEntity<UserResponseDto> getUserProfileData(@AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .build();
+        }
+
+        String username = userDetails.getUsername();
+        try {
+            UserResponseDto userResponseDto = userService.getUserProfileData(username);
+            if (userResponseDto != null) {
+                return ResponseEntity.ok(userResponseDto);
+            } else {
+                return ResponseEntity
+                        .status(HttpStatus.NO_CONTENT)
+                        .build();
+            }
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .build();
+        }
+    }
+
+    //Return user information (Full Name, Username, Email)
+    @DeleteMapping("/close-account")
+    public ResponseEntity<?> deleteUser(@AuthenticationPrincipal UserDetails userDetails, @RequestBody UserLoginDto userLoginDto) {
+        //Checks if the token from frontend is available
+        if (userDetails == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .build();
+        }
+        //Checks is the username and password are correct
+        try {
+            Authentication authentication = authenticationManager
+                    .authenticate(new UsernamePasswordAuthenticationToken(userLoginDto.getUsername(), userLoginDto.getPassword()));
+            if (authentication.isAuthenticated()) {
+                String username = userLoginDto.getUsername();
+                //DELETE user
+                userService.deleteUser(username);
+                return ResponseEntity
+                        .status(HttpStatus.OK)
+                        .build();
+            } else {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .build();
+            }
+
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Server Connection Error: " + e.getMessage()));
+        }
+    }
+
+
+
     //RECOMMENDED: Check to see if token is valid, using Bearer Token method (in React);
     @GetMapping("/check-token")
     public ResponseEntity<Map<String, Object>> isTokenValid(@AuthenticationPrincipal UserDetails userDetails) {
@@ -163,7 +288,7 @@ public class UserController {
         }
 
         //return ResponseEntity.ok(userDetails.getUsername());
-        System.out.println("Check if valid: " + userDetails.getUsername());
+        //System.out.println("Check if valid: " + userDetails.getUsername());
 
         return ResponseEntity
                 .status(HttpStatus.OK)

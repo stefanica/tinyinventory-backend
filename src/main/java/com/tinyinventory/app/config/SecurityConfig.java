@@ -64,7 +64,7 @@ public class SecurityConfig {
         // enable authorisation; for every request we are saying authenticate
         http.authorizeHttpRequests((request -> request
                 //once a user logs in I want to create a new token
-                .requestMatchers("/api/register", "/api/login", "/api/reset-password") //add this request path (url)
+                .requestMatchers("/api/register", "/api/login", "/api/reset-password-email", "/api/change-password", "/api/test") //add this request path (url)
                 .permitAll() // only for "register" and "login" requests path to permit to be accessed
                 .anyRequest().authenticated()));
 

@@ -44,7 +44,7 @@ public class JwtService {
         try {
             KeyGenerator keyGen = KeyGenerator.getInstance("HmacSHA256");
             SecretKey secretKey = keyGen.generateKey();
-            System.out.println("Secret Key : " + secretKey.toString());
+            //System.out.println("Secret Key : " + secretKey.toString());
             return Base64.getEncoder().encodeToString(secretKey.getEncoded());
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Error generating secret key", e);
@@ -62,7 +62,7 @@ public class JwtService {
                 .setClaims(claims) // Claims (JwtToken Payload Data): username, issues date, exparation (the 3 lines below)
                 .setSubject(username)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + 1000*60*60*24*7)) //7 days OR Comment line for No Expiration Date
+                .setExpiration(new Date(System.currentTimeMillis() + 1000*60*60*24*20)) //20 days OR Comment line for No Expiration Date
                 .signWith(getKey(), SignatureAlgorithm.HS256).compact(); //here we have to sign the token using an algorithm
 
         //Because the methods from above are deprecated maybe we should try with a new approach
@@ -128,6 +128,7 @@ public class JwtService {
     }
 
 
+    //Validate Jwt Token by Username
     public boolean validateToken(String token, UserDetails userDetails) {
         final String userName = extractUserName(token);
         //checks if the username from the database is equal to the username from the JwtToken, and if the JwtToken is expired
@@ -141,6 +142,26 @@ public class JwtService {
     private Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
     }
+
+    /***************  Methods used for Password Change *******************/
+
+    public String generatePasswordResetToken(String email) {
+        Map<String, Object> claims = new HashMap<>();
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(email) // ✅ This is the key change
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)) // 24 hours validity
+                .signWith(getKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public boolean validateTokenByEmail(String token, String email) {
+        final String extractedEmail = extractUserName(token); // assuming subject = email
+        return (extractedEmail.equals(email) && !isTokenExpired(token));
+    }
+
+    /**********************************************************************/
 
 
 }

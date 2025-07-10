@@ -21,7 +21,12 @@ import java.util.List;
 import java.util.Map;
 
 //Used to allow access from React/Vite. It may be changed or commented in production
-@CrossOrigin(origins = "http://localhost:5173")
+//@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+        "http://localhost:5173", // for development
+        "https://tinyinventory.com",
+        "https://www.tinyinventory.com"
+})
 @RestController
 @RequestMapping("/api")
 public class ProductController {
@@ -52,6 +57,7 @@ public class ProductController {
         System.out.println(username);*/
 
         String username = userDetails.getUsername();
+
        try {
            List<ProductResponseDto> productList = productService.getAllUserProducts(username);
 

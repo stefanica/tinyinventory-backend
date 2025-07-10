@@ -3,13 +3,13 @@ package com.tinyinventory.app.service;
 import com.sendgrid.helpers.mail.Mail;
 import com.sendgrid.helpers.mail.objects.Content;
 import com.sendgrid.helpers.mail.objects.Email;
-import com.tinyinventory.app.dto.UserRegisterDto;
-import com.tinyinventory.app.dto.UserResetPasswordDto;
-import com.tinyinventory.app.dto.UserResponseDto;
+import com.tinyinventory.app.dto.*;
 import com.tinyinventory.app.exceptions.*;
 import com.tinyinventory.app.misc.APIKeys;
 import com.tinyinventory.app.model.User;
 import com.tinyinventory.app.repo.UserRepo;
+import jakarta.mail.MessagingException;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,6 +17,8 @@ import com.sendgrid.*;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.Optional;
 import java.util.Random;
 
 @Service
@@ -24,65 +26,65 @@ public class UserService {
 
     @Autowired
     private UserRepo userRepo;
+
+    @Autowired
+    private EmailService emailService;
+
+    @Autowired
+    private JwtService jwtService;
+
     //Uncomment Spring Security framework from pom.xml file
     private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
     // ********** Change Password in case it was forgotten *************//
     //Reset password with a random one
-    @Transactional
-    public void resetPasswordRandom(UserResetPasswordDto userResetPasswordDto)
-            throws EmailNotFoundException, IOException, IllegalStateException {
+    //@Transactional
+    public void sendPasswordResetEmail(UserResetPasswordDto userResetPasswordDto)
+            throws EmailNotFoundException, MessagingException, UnsupportedEncodingException {
+
+        //The email for which we want to reset the password
+        String email = userResetPasswordDto.getEmail();
+
         // Check if the email exists
-        if (!userRepo.existsByEmail(userResetPasswordDto.getEmail())) {
+        if (!userRepo.existsByEmail(email)) {
             throw new EmailNotFoundException("Email not found");
         }
 
-        // Generate and encode a new password
-        String generatedPassword = randomPassword();
-        String encodedPassword = encoder.encode(generatedPassword);
+        //If email exists, then generate a token and send an email with it
+        String token = jwtService.generatePasswordResetToken(email);
+        emailService.sendRecoveryTextEmail(email, token); //Sending text email -> WORKS
+        //emailService.sendRecoveryHtmlEmail(email, token); //Sending HTML email -> Woks, but sends email to spam
 
-        // Update the password and validate the update
-        int passwordUpdated = userRepo.setPasswordByEmail(encodedPassword, userResetPasswordDto.getEmail());
-        if (passwordUpdated != 1) {
-            throw new IllegalStateException("Password update failed. No rows were affected.");
-        }
-
-        // Send recovery email
-        try {
-            sendPasswordRecoveryEmail(userResetPasswordDto.getEmail(), generatedPassword);
-        } catch (IOException e) {
-                throw new IOException(e.getMessage());
-        }
     }
 
-    //Generate a random password that will replace the old password and will also be sent to email
-    public String randomPassword() {
-        String charArr = "abcdefghijklmnopqrstuvwxyz0123456789";
-        Random random = new Random();
-        StringBuilder password = new StringBuilder();
-        for (int i = 0; i < 8; i++) {
-            password.append(charArr.charAt(random.nextInt(charArr.length())));
+    public void updatePassword(PasswordResetDto passwordResetDto) {
+        String token = passwordResetDto.getToken();
+        String password = passwordResetDto.getPassword();
+        String confirmedPassword = passwordResetDto.getConfirmedPassword();
+
+        System.out.println("Password: " + password);
+        System.out.println("Confirmed password: " + confirmedPassword);
+
+        String email = jwtService.extractUserName(token);
+
+        if (!userRepo.existsByEmail(email)) {
+            throw new EmailNotFoundException("Email not found! Possible broken token or server error.");
         }
-        return password.toString();
-    }
 
-    //Send password to User email using SendGrid dependency
-    public void sendPasswordRecoveryEmail(String to, String newPassword) throws IOException {
-        Email from = new Email("contact@tinyinventory.com");
-        String subject = "Password Recovery";
-        Email recipient = new Email(to);
-        Content content = new Content("text/plain", "Your new password is: " + newPassword);
-        Mail mail = new Mail(from, subject, recipient, content);
+        if (!password.equals(confirmedPassword)) {
+            throw new PasswordMatchException("Passwords don't match");
+        }
 
-        APIKeys apiKeys = new APIKeys();
-        SendGrid sg = new SendGrid(apiKeys.getSendGridKey());
-        Request request = new Request();
-        request.setMethod(Method.POST);
-        request.setEndpoint("mail/send");
-        request.setBody(mail.build());
-        sg.api(request);
+        if (!validatePassword(password)) {
+            throw new InvalidPasswordFormatException("Password format is invalid! " +
+                    "Must be at least 8 characters, include uppercase, lowercase, number, and special character.");
+        }
+
+
+        userRepo.updatePasswordByEmail(encoder.encode(password), email);
     }
     //*******************************************************************************************//
+
 
     public UserResponseDto saveUser(UserRegisterDto userRegisterDto) {
 
@@ -98,9 +100,15 @@ public class UserService {
             throw new PasswordMatchException("Passwords don't match");
         }
 
+        //WORKS but I opted for a simpler password format
         //This can also be done on the front-end, but for security reasons needs to be also on backend
+        /*if (!validatePassword(userRegisterDto.getPassword())) {
+            throw new InvalidPasswordFormatException("Password format is invalid! " +
+                    "Must be at least 8 characters, include uppercase, lowercase, number, and special character.");
+        }*/
+
         if (!validatePassword(userRegisterDto.getPassword())) {
-            throw new InvalidPasswordFormatException("Password format is invalid");
+            throw new InvalidPasswordFormatException("Password must be at least 8 characters long.");
         }
 
         //Create User object (Entity) from UserRegisterDto
@@ -116,14 +124,39 @@ public class UserService {
         return new UserResponseDto(userRepo.save(user));
     }
 
+    //Get user data from account profile
+    public UserResponseDto getUserProfileData(String username) {
+        User user = userRepo.findUserByUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("User with username " + username + " not found"));
+
+        return new UserResponseDto(user);
+    }
+
+    //Delete User from database
+    public void deleteUser(String username) {
+        Optional<User> optionalUser = userRepo.findUserByUsername(username);
+
+        if (optionalUser.isPresent()) {
+            User user = optionalUser.get();
+            userRepo.deleteById(user.getId());
+        } else {
+            throw new EntityNotFoundException("User with username " + username + " not found");
+        }
+    }
+
 
     //This can also be done on the front-end, but for security reasons needs to be also on backend
     public boolean validatePassword(String password) {
         //Return TRUE if:
-        // - has at least 8 characters
-        // - has at least one letter
-        // - has at least one digit
-        return password.matches("^(?=.*[A-Za-z])(?=.*\\\\d)[A-Za-z\\\\d]{8,}$");
+        // 1. has at least 8 characters, at least one letter, at least one digit
+        // regex: ^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,}$
+
+        // 2. at least 8 characters, include uppercase, lowercase, number, and special character
+        // regex: ^(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\\W_]).{8,}$
+
+        //3. Any character, but at least 8 characters
+        // regex: ^\S{8,}$
+        return password.matches("^\\S{8,}$");
     }
 
 }

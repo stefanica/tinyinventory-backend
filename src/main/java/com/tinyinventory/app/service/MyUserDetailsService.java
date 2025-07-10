@@ -26,4 +26,14 @@ public class MyUserDetailsService implements UserDetailsService {
         //And the implementation is in model package with the class UserPrincipal
         return new UserPrincipal(user);
     }
+
+    //Used for password reset
+    public UserDetails loadUserByEmail(String email) throws UsernameNotFoundException {
+        User user = userRepo.findUserByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        return new UserPrincipal(user);
+    }
+
+
 }

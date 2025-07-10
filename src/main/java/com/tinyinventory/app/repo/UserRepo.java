@@ -27,12 +27,23 @@ public interface UserRepo extends JpaRepository<User, Integer> {
     //@Query("SELECT COUNT(u) > 0 FROM users u WHERE u.username = :username");
     boolean existsByEmail(String email);
 
+    //Used in password reset by MyUserDetailsService.
+    //@Query("SELECT u FROM User u WHERE u.email = :email") JPQL
+    //@Query(value = "SELECT * FROM users WHERE email = :email", nativeQuery = true) SQL
+    //Optional<User> findUserByEmail(@Param("email") String email);
+    Optional<User> findUserByEmail(String email);
+
     //Update password in case it was forgotten
     //UPDATE Users SET password = ?1 WHERE email = ?2; //SQL
     @Modifying
     @Transactional
     @Query("UPDATE User u SET u.password = :password WHERE u.email = :email")
-    int setPasswordByEmail(@Param("password") String password, @Param("email") String email);
+    int updatePasswordByEmail(@Param("password") String password, @Param("email") String email);
+
+    /*@Modifying
+    @Transactional
+    @Query("UPDATE User u SET u.password = :password WHERE u.email = :email")
+    int updatePasswordByEmail(@Param("email") String email, @Param("password") String password);*/
 
 
 }

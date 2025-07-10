@@ -33,7 +33,8 @@ public class JwtFilter extends OncePerRequestFilter {
         // *** Used mainly to reset password ***
         String requestURI = request.getRequestURI();
         // Bypass JWT validation for these endpoints
-        if (requestURI.equals("/register") || requestURI.equals("/login") || requestURI.equals("/reset-password")) {
+        if (requestURI.equals("/register") || requestURI.equals("/login") || requestURI.equals("/reset-password-email") ||
+                requestURI.equals("/change-password")) {
             filterChain.doFilter(request, response);
             return; // Skip the JWT validation logic
         }
