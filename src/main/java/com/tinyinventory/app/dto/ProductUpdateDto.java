@@ -14,6 +14,6 @@ public class ProductUpdateDto {
     private String name;
     private Long code;
     private int quantity;
-    private BigDecimal price;
-
+    private BigDecimal priceIn;
+    private BigDecimal priceOut;
 }

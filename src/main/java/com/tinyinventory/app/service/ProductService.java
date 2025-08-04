@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -77,8 +78,10 @@ public class ProductService {
         Product product = new Product();
         product.setCode(productNewDto.getCode());
         product.setName(productNewDto.getName());
-        product.setPrice(productNewDto.getPrice());
+        product.setPriceIn(productNewDto.getPriceOut());
+        product.setPriceOut(productNewDto.getPriceIn());
         product.setQuantity(productNewDto.getQuantity());
+        product.setUpdatedAt(LocalDateTime.now());
         //product.setUserId(user.getId());
         product.setUser(user);
 
@@ -93,12 +96,18 @@ public class ProductService {
         User user = userRepo.findUserByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
+        //First check to see if the priceIn of the product is the same as priceIn of updated product
+        //IF NOT then create a new product, almost identically with the old one, but wih NEW priceIn4
+        //***********TO IMPLEMENT *********
+
+
         Product product = new Product();
         product.setId(productUpdateDto.getId());
         product.setCode(productUpdateDto.getCode());
         product.setName(productUpdateDto.getName());
-        product.setPrice(productUpdateDto.getPrice());
+        product.setPriceIn(productUpdateDto.getPriceOut());
         product.setQuantity(productUpdateDto.getQuantity());
+        product.setUpdatedAt(LocalDateTime.now());
         product.setUser(user);
 
         try {

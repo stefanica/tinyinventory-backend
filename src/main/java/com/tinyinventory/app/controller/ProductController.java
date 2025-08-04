@@ -77,21 +77,35 @@ public class ProductController {
        }
     }
 
-    @GetMapping("get-product/{username}/{productCode}")
-    public ResponseEntity<ProductResponseDto> getProduct(@PathVariable String username, @PathVariable Long productCode) {
+    @GetMapping("get-product/{productCode}")
+    public ResponseEntity<ProductResponseDto> getProduct(@AuthenticationPrincipal UserDetails userDetails, @PathVariable Long productCode) {
+
+        if (userDetails == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .build();
+        }
+
         try {
-            ProductResponseDto productResponseDto = productService.getProduct(username, productCode);
+            ProductResponseDto productResponseDto = productService.getProduct(userDetails.getUsername(), productCode);
             return ResponseEntity.status(HttpStatus.FOUND).body(productResponseDto);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    @PostMapping("save-product/{username}")
-    public ResponseEntity<Void> saveProduct(@RequestBody ProductNewDto productNewDto, @PathVariable String username) {
+    @PostMapping("save-product/")
+    public ResponseEntity<Void> saveProduct(@AuthenticationPrincipal UserDetails userDetails,@RequestBody ProductNewDto productNewDto) {
         //Why use Void: In REST APIs, we typically don't return primitive values (like Boolean)
+
+        if (userDetails == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .build();
+        }
+
         try {
-            productService.saveProduct(productNewDto, username);
+            productService.saveProduct(productNewDto, userDetails.getUsername());
             return ResponseEntity.status(HttpStatus.CREATED).build(); // 201 Created on success
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).build(); // Handles custom exceptions (e.g., user not found)

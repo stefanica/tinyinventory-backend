@@ -5,14 +5,16 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ProductNewDto {
+public class ProductNewDto { //ADD a new product to database
     private String name;
     private Long code;
     private int quantity;
-    private BigDecimal price;
+    private BigDecimal priceIn;
+    private BigDecimal priceOut;
 
 }

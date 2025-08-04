@@ -10,6 +10,7 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -61,7 +62,13 @@ public class Product {
     @Column(nullable = false)
     private int quantity;
 
-    @Column(nullable = false, precision = 19, scale = 4) // Precision = total digits, Scale = decimal digits
-    private BigDecimal price;
+    @Column(name="price_in", nullable = false, precision = 19, scale = 4) // Precision = total digits, Scale = decimal digits
+    private BigDecimal priceIn;
+
+    @Column(name = "price_out", nullable = false, precision = 19, scale = 4) // Precision = total digits, Scale = decimal digits
+    private BigDecimal priceOut;
+
+    @Column(name = "updated_at", nullable = false, updatable = false)
+    private LocalDateTime updatedAt;
 
 }
