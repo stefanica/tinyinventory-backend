@@ -109,7 +109,7 @@ public class UserController {
 
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> saveUser(@RequestBody UserRegisterDto userRegisterDto) {
-       try {
+       //try {
            UserResponseDto savedUser = userService.saveUser(userRegisterDto);
 
            Map<String, Object> response = new HashMap<>();
@@ -125,29 +125,6 @@ public class UserController {
            return ResponseEntity
                    .status(HttpStatus.CREATED)
                    .body(response);
-
-       } catch (UsernameAlreadyExistsException e) {
-           return ResponseEntity
-                   .status(HttpStatus.CONFLICT)
-                   .body(Map.of("message", "Username already taken"));
-       } catch (EmailAlreadyExistsException e) {
-           return ResponseEntity
-                   .status(HttpStatus.CONFLICT)
-                   .body(Map.of("message", e.getMessage()));
-       } catch (PasswordMatchException e) {
-           return ResponseEntity
-                   .status(HttpStatus.BAD_REQUEST)
-                   .body(Map.of("message", e.getMessage()));
-       } catch (InvalidPasswordFormatException e) {
-           return ResponseEntity
-                   .status(HttpStatus.BAD_REQUEST)
-                   .body(Map.of("message", e.getMessage())); //gets the message from the UserService (exception creation)
-       } catch (Exception e) {
-           return ResponseEntity
-                   .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                   .body(Map.of("message", e.getMessage()));
-                  // .body(Map.of("message", "An unexpected error occurred"));
-       }
 
     }
 

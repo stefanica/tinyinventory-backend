@@ -11,12 +11,11 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class ProductUpdateDto {
-    private Long productBatchId;
-    private String name;
+public class StockMovementBatchDto {
+    private String productName;
     private Long code;
-    private int quantityThreshold;
     private int quantity;
     private BigDecimal priceIn;
     private BigDecimal priceOut;
+    private BigDecimal profit;
 }

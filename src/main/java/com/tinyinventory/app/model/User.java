@@ -8,6 +8,10 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -18,7 +22,7 @@ import lombok.NoArgsConstructor;
     @UniqueConstraint(name = "uk_users_username", columnNames = "username")
 }) // Ensures username uniqueness at the database level *** Not sure if I want this
 */
-@Table(name = "users") // Specifies the table name in PostgreSQL
+@Table(name = "users") // Specifies the table name in PostgresSQL
 public class User {
 
     @Id
@@ -39,6 +43,33 @@ public class User {
 
     @Column(unique = true) // Ensures email uniqueness but allows null
     private String email;
+
+    //User role/authority level
+    @Column(name = "role")
+    private String role;
+    // Example values: "ADMIN", "USER", "MANAGER"
+    // Could also be an enum
+
+    // Domain of activity
+    @Column(name = "business_domain")
+    private String businessDomain;
+    // Example values: "Book Store", "Pet Shop"
+
+    // Preferred currency
+    @Column(name = "currency", length = 3)
+    private String currency;
+    // ISO 4217 code like "USD", "EUR"
+
+    @Column(name = "country")
+    private String country;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
 
 }

@@ -7,17 +7,15 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class ProductNewDto { //ADD a new product to database
-    private String name;
-    private Long code;
-    private int quantityThreshold;
-    private int quantity;
-    private BigDecimal priceIn;
-    private BigDecimal priceOut;
+public class StockMovementResponseDto {
+    private LocalDateTime movementDate;
+    private List<StockMovementBatchDto> stockMovementBatchDtoList;
+    private BigDecimal totalProfit;
 
 }

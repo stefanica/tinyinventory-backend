@@ -3,18 +3,21 @@ package com.tinyinventory.app.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Data
+
+//@Data //Replaced by @Getter, @Setter
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "products") // Specifies the table name in PostgreSQL
 public class Product {
@@ -59,16 +62,24 @@ public class Product {
     @Column(nullable = false) // Ensures uniqueness for code
     private Long code;
 
-    @Column(nullable = false)
-    private int quantity;
-
-    @Column(name="price_in", nullable = false, precision = 19, scale = 4) // Precision = total digits, Scale = decimal digits
-    private BigDecimal priceIn;
-
-    @Column(name = "price_out", nullable = false, precision = 19, scale = 4) // Precision = total digits, Scale = decimal digits
+    // Precision = total digits, Scale = decimal digits
+    @Column(name = "price_out", precision = 19, scale = 4) // Run first, to create field with NULL, SQL from migration package will change it
+    //@Column(name = "price_out", nullable = false, precision = 19, scale = 4) //Finally comment the first one and uncomment this; all new will be NOT NULL
     private BigDecimal priceOut;
 
-    @Column(name = "updated_at", nullable = false, updatable = false)
-    private LocalDateTime updatedAt;
+    //Used as a threshold to alert the user when the available quantity gets low
+    @Column(name="quantity_threshold", nullable = false, columnDefinition = "integer default 0")
+    private int quantityThreshold;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    //Idea to modify date. But works only when you create a new product
+    // Optional: Automatically set createdAt on persist
+    /*@PrePersist
+    protected void onCreate() {
+        this.updatedAt = LocalDateTime.now();
+    }*/
 
 }

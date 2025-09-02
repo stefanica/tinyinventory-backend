@@ -1,10 +1,10 @@
 package com.tinyinventory.app.controller;
 
-import com.tinyinventory.app.dto.ProductNewDto;
-import com.tinyinventory.app.dto.ProductResponseDto;
-import com.tinyinventory.app.dto.ProductUpdateDto;
-import com.tinyinventory.app.dto.TokenDto;
+import com.tinyinventory.app.dto.*;
+import com.tinyinventory.app.exceptions.ProductNotFoundException;
+import com.tinyinventory.app.exceptions.UnauthorizedException;
 import com.tinyinventory.app.model.Product;
+import com.tinyinventory.app.model.ProductBatch;
 import com.tinyinventory.app.service.JwtService;
 import com.tinyinventory.app.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,92 +42,117 @@ public class ProductController {
     public ResponseEntity<List<ProductResponseDto>> getProducts(@PathVariable String username) {*/
 
     /******* NEW When I extract the username from the JWT token *******/
+    //Returns a list WHERE there is a NEW Product for EVERY ProductBatch
     @GetMapping("/get-products")
     //public ResponseEntity<List<ProductResponseDto>> getProducts(@RequestBody TokenDto tokenDto) {
-    public ResponseEntity<List<ProductResponseDto>> isTokenValid(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<List<ProductResponseDto>> getAllProducts(@AuthenticationPrincipal UserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .build();
+            throw new UnauthorizedException("User is not authenticated");
         }
 
-        //First way of doing it
-        /*String username = jwtService.extractUserName(tokenDto.getToken());
-        System.out.println(username);*/
-
-        String username = userDetails.getUsername();
-
-       try {
-           List<ProductResponseDto> productList = productService.getAllUserProducts(username);
-
-           if (productList.isEmpty()) {
-               return ResponseEntity
-                       .status(HttpStatus.NO_CONTENT)
-                       .build();
-               //could also be
-               //return ResponseEntity.noContent().build();
-           }
-           return ResponseEntity.ok(productList);
-
-       } catch (Exception e) {
-           return ResponseEntity
-                   .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                   .build();
+       List<ProductResponseDto> productList = productService.getAllUserProducts(userDetails.getUsername());
+       if (productList.isEmpty()) {
+           throw new ProductNotFoundException("No product found in database");
        }
+
+       return ResponseEntity.ok(productList);
     }
 
-    @GetMapping("get-product/{productCode}")
-    public ResponseEntity<ProductResponseDto> getProduct(@AuthenticationPrincipal UserDetails userDetails, @PathVariable Long productCode) {
+
+
+    //Will return Product (by code and user) and one ProductBatch (by product and id)
+    //USE: designed to be used in React to EDIT a specific product. ***This to be used only to correct mistakes
+    @GetMapping("/get-product/{productCode}/{productBatchId}")
+    public ResponseEntity<ProductResponseDto> getOneProductAndOneProductBatch(@AuthenticationPrincipal UserDetails userDetails,
+                                                                  @PathVariable Long productCode, @PathVariable Long productBatchId) {
+        if (userDetails == null) {
+            throw new UnauthorizedException("User is not authenticated");
+        }
+
+
+        System.out.println("Get product batch: " + userDetails.getUsername() + " " + productCode + " " + productBatchId);
+
+        ProductResponseDto productResponseDto = productService.getOneProductAndOneProductBatch(
+                userDetails.getUsername(), productCode, productBatchId);
+        return ResponseEntity.status(HttpStatus.OK).body(productResponseDto);
+    }
+
+
+
+    //Designed for Android Inventory Activity: Return each Product with summed and averaged price_in of all Batches
+    @GetMapping("/get-products-summed")
+    public ResponseEntity<List<ProductResponseDto>> getAllProductsAndBatchesSum(@AuthenticationPrincipal UserDetails userDetails) {
 
         if (userDetails == null) {
-            return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .build();
+            throw new UnauthorizedException("User is not authenticated");
         }
 
-        try {
-            ProductResponseDto productResponseDto = productService.getProduct(userDetails.getUsername(), productCode);
-            return ResponseEntity.status(HttpStatus.FOUND).body(productResponseDto);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        List<ProductResponseDto> productResponseDtoList = productService
+                .getAllProductsWithSumBatches(userDetails.getUsername());
+
+        return ResponseEntity.ok(productResponseDtoList);
     }
 
-    @PostMapping("save-product/")
-    public ResponseEntity<Void> saveProduct(@AuthenticationPrincipal UserDetails userDetails,@RequestBody ProductNewDto productNewDto) {
+
+
+    //Used in Android to check/search a Product by code, when Add or Remove
+    //Get Product info and the last Batch corresponding to that product
+    @GetMapping("/get-product/{productCode}")
+    public ResponseEntity<ProductResponseDto> getLastProductInfoBatch(@AuthenticationPrincipal UserDetails userDetails,
+                                                                      @PathVariable Long productCode) {
+        if (userDetails == null) {
+            throw new UnauthorizedException("User is not authenticated");
+        }
+        ProductResponseDto productResponseDto = productService.getLastProductInfoBatch(userDetails.getUsername(), productCode);
+
+        return ResponseEntity.ok(productResponseDto);
+    }
+
+
+    //For new Product creates a new product
+    //For existing Product updates existing product AND checks ProductBatch to see if there is one with the same
+    //price_in as the updated product, IF Yes it updates that ProductBatch, IF Not creates a new ProductBatch
+    @PostMapping("/save-product")
+    public ResponseEntity<Void> saveProduct(@AuthenticationPrincipal UserDetails userDetails,
+                                            @RequestBody ProductNewDto productNewDto) {
         //Why use Void: In REST APIs, we typically don't return primitive values (like Boolean)
-
         if (userDetails == null) {
-            return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .build();
+            throw new UnauthorizedException("User is not authenticated");
         }
 
-        try {
-            productService.saveProduct(productNewDto, userDetails.getUsername());
-            return ResponseEntity.status(HttpStatus.CREATED).build(); // 201 Created on success
-        } catch (ResponseStatusException e) {
-            return ResponseEntity.status(e.getStatusCode()).build(); // Handles custom exceptions (e.g., user not found)
-        } catch (Exception e) {
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .build(); // Handles unexpected errors
-        }
+        productService.saveProduct(productNewDto, userDetails.getUsername());
+        return ResponseEntity.status(HttpStatus.CREATED).build(); // 201 Created on success
     }
 
-    @PutMapping("update-product/{username}")
-    public ResponseEntity<Void> updateProduct(@RequestBody ProductUpdateDto productUpdateDto, @PathVariable String username) {
-        try {
-            productService.updateProduct(productUpdateDto, username);
-            return ResponseEntity.status(HttpStatus.OK).build(); // 200 Created on success
-        } catch (ResponseStatusException e) {
-            return ResponseEntity.status(e.getStatusCode()).build(); // Handles custom exceptions (e.g., user not found)
-        } catch (Exception e) {
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .build(); // Handles unexpected errors
+
+    //Updates a Product and one ProductBatch
+    @PutMapping("/update-product")
+    public ResponseEntity<Void> updateProduct(@AuthenticationPrincipal UserDetails userDetails,
+                                              @RequestBody ProductUpdateDto productUpdateDto) {
+        if (userDetails == null) {
+            throw new UnauthorizedException("User is not authenticated");
         }
+
+        productService.updateProduct(productUpdateDto, userDetails.getUsername());
+        return ResponseEntity.status(HttpStatus.OK).build(); // 200 Created on success
+    }
+
+
+
+    //Take products from database:
+    //Update ProductBatch with new remaining quantity
+    //Create new StockMovement (multiple Items), StockMovementItem (multiple Batches), StockMovementBatch
+    @PostMapping("/checkout-products")
+    public ResponseEntity<Void> checkoutProducts(@AuthenticationPrincipal UserDetails userDetails,
+                                                 @RequestBody List<ProductCheckoutDto> productCheckoutDtos) {
+
+        if (userDetails == null) {
+            throw new UnauthorizedException("User is not authenticated");
+        }
+
+        productService.checkoutProducts(userDetails.getUsername(), productCheckoutDtos);
+        return ResponseEntity.status(HttpStatus.OK).build(); // 200 Created on success
     }
 
 }

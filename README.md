@@ -1,6 +1,6 @@
 # TinyInventory Java + Spring Boot Backend App
 
-* 50% done -> percentage of the backend project completed
+* 70% done -> percentage of the backend project completed
 * 30% available live -> percentage available for live view on https://tinyinventory.com
 
 The whole project uses Docker for containerization and a VPS for deployment.  
